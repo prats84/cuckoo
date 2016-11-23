@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -18,12 +18,7 @@ class Config:
         @param file_name: file name without extension.
         @param cfg: configuration file path.
         """
-        env = {}
-        for key, value in os.environ.items():
-            if key.startswith("CUCKOO_"):
-                env[key] = value
-
-        config = ConfigParser.ConfigParser(env)
+        config = ConfigParser.ConfigParser()
 
         if cfg:
             config.read(cfg)

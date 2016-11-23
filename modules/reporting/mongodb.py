@@ -24,23 +24,27 @@ class MongoDB(Report):
 
     # Mongo schema version, used for data migration.
     SCHEMA_VERSION = "1"
-
     def connect(self):
         """Connects to Mongo database, loads options and set connectors.
         @raise CuckooReportError: if unable to connect.
         """
-        host = self.options.get("host", "127.0.0.1")
+        host = self.options.get("host", "10.0.10.145")
         port = int(self.options.get("port", 27017))
+	###This setup expect that the authentication db and connection db are the same.
         db = self.options.get("db", "cuckoo")
+        username = self.options.get("username", "dbadmin")
+        password = self.options.get("password", "password")
 
         try:
-            self.conn = MongoClient(host, port)
+            self.conn = MongoClient(host, 27017)
+            self.conn.api.authenticate(username,password,mechanism="SCRAM-SHA-1", source=db)
             self.db = self.conn[db]
             self.fs = GridFS(self.db)
         except TypeError:
             raise CuckooReportError("Mongo connection port must be integer")
         except ConnectionFailure:
             raise CuckooReportError("Cannot connect to MongoDB")
+
 
     def store_file(self, file_obj, filename=""):
         """Store a file in GridFS.

@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file was originally produced by Mike Tu.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
@@ -168,7 +168,7 @@ class VMware(Machinery):
                                      "Reason: %s" % (vmx_path, e))
         else:
             if output:
-                return vmx_path.lower() in output.lower()
+                return vmx_path in output
             else:
                 raise CuckooMachineError("Unable to check running status "
                                          "for %s. No output from "

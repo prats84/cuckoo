@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -16,10 +16,9 @@ class Package(object):
     PATHS = []
     REGKEYS = []
 
-    def __init__(self, options={}, analyzer=None):
+    def __init__(self, options={}):
         """@param options: options dict."""
         self.options = options
-        self.analyzer = analyzer
         self.pids = []
 
         # Fetch the current working directory, defaults to $TEMP.
@@ -127,27 +126,17 @@ class Package(object):
 
             CloseKey(key_handle)
 
-    def execute(self, path, args, mode=None, maximize=False, env=None,
-                source=None, trigger=None):
+    def execute(self, path, args, mode=None, maximize=False):
         """Starts an executable for analysis.
         @param path: executable path
         @param args: executable arguments
         @param mode: monitor mode - which functions to instrument
         @param maximize: whether the GUI should start maximized
-        @param env: additional environment variables
-        @param source: parent process of our process
-        @param trigger: trigger to indicate analysis start
         @return: process pid
         """
         dll = self.options.get("dll")
         free = self.options.get("free")
-
-        source = source or self.options.get("from")
-        mode = mode or self.options.get("mode")
-
-        if not trigger and self.options.get("trigger"):
-            if self.options["trigger"] == "exefile":
-                trigger = "file:%s" % path
+        source = self.options.get("from")
 
         # Setup pre-defined registry keys.
         self.init_regkeys(self.REGKEYS)
@@ -155,10 +144,9 @@ class Package(object):
         p = Process()
         if not p.execute(path=path, args=args, dll=dll, free=free,
                          curdir=self.curdir, source=source, mode=mode,
-                         maximize=maximize, env=env, trigger=trigger):
-            raise CuckooPackageError(
-                "Unable to execute the initial process, analysis aborted."
-            )
+                         maximize=maximize):
+            raise CuckooPackageError("Unable to execute the initial process, "
+                                     "analysis aborted.")
 
         return p.pid
 

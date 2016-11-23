@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -35,7 +35,7 @@ except ImportError:
     print "Unable to import alembic (install with `pip install alembic`)"
     sys.exit()
 
-sys.path.insert(0, os.path.join("..", ".."))
+sys.path.append(os.path.join("..", ".."))
 
 import lib.cuckoo.core.database as db
 from lib.cuckoo.common.config import Config

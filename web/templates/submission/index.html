@@ -51,6 +51,7 @@ $(document).ready( function() {
 </script>
 <div class="row">
     <div class="col-md-6 col-md-offset-3 center">
+        <p style="margin-bottom: 10px;"><img src="{% static "graphic/cuckoo.png" %}" /></p>
 
         <form role="form" action="" method="post" enctype="multipart/form-data">{% csrf_token %}
             <div class="tabbable">
@@ -141,7 +142,7 @@ $(document).ready( function() {
                                 <label for="form_priority">Priority</label>
                                 <select class="form-control" id="form_priority" name="priority">
                                     <option value="1">Low</option>
-                                    <option value="2" selected>Medium</option>
+                                    <option value="2">Medium</option>
                                     <option value="3">High</option>
                                 </select>
                             </div>
@@ -164,7 +165,7 @@ $(document).ready( function() {
                             </div>
                             <div class="checkbox">
                                 <label>
-                                    <input type="checkbox" name="process_memory" checked /> Process Memory Dump
+                                    <input type="checkbox" name="process_memory" /> Process Memory Dump
                                 </label>
                             </div>
                             <div class="checkbox">
@@ -175,11 +176,6 @@ $(document).ready( function() {
                             <div class="checkbox">
                                 <label>
                                     <input type="checkbox" name="enforce_timeout" /> Enforce Timeout
-                                </label>
-                            </div>
-                            <div class="checkbox">
-                                <label>
-                                    <input type="checkbox" name="human" checked />Enable Simulated Human Interaction</input>
                                 </label>
                             </div>
                             <div class="checkbox">

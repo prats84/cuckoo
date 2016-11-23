@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -349,7 +349,7 @@ class File(object):
         """Get the entry point for this APK. The entry point is denoted by a
         package and main activity name."""
         filetype = self.get_type()
-        if "Zip archive data" not in filetype and "Java archive data" not in filetype:
+        if "Zip archive data" not in filetype and "Java Jar" not in filetype:
             return "", ""
 
         if not HAVE_ANDROGUARD:

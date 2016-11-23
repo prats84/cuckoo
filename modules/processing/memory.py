@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -10,8 +10,6 @@ import time
 from lib.cuckoo.common.abstracts import Processing
 from lib.cuckoo.common.config import Config
 from lib.cuckoo.common.constants import CUCKOO_ROOT
-
-log = logging.getLogger(__name__)
 
 try:
     import volatility.conf as conf
@@ -35,14 +33,10 @@ try:
     rootlogger = logging.getLogger()
     logging.getLogger("volatility.obj").setLevel(rootlogger.level)
     logging.getLogger("volatility.utils").setLevel(rootlogger.level)
-except ImportError as e:
-    if e.message == "No module named Crypto.Hash":
-        log.error(
-            "The PyCrypto package is missing (install with "
-            "`pip install pycrypto`)"
-        )
-
+except ImportError:
     HAVE_VOLATILITY = False
+
+log = logging.getLogger(__name__)
 
 class VolatilityAPI(object):
     """ Volatility API interface."""
@@ -917,7 +911,7 @@ class VolatilityManager(object):
 
         conf_path = os.path.join(CUCKOO_ROOT, "conf", "memory.conf")
         if not os.path.exists(conf_path):
-            log.error("Configuration file {0} not found".format(conf_path))
+            log.error("Configuration file volatility.conf not found".format(conf_path))
             self.voptions = False
             return
 

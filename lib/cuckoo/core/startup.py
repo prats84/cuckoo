@@ -481,8 +481,12 @@ def cuckoo_clean():
         host = cfg.mongodb.get("host", "127.0.0.1")
         port = cfg.mongodb.get("port", 27017)
         mdb = cfg.mongodb.get("db", "cuckoo")
+        username = cfg.mongodb.get("username","dbadmin")
+        password = cfg.mongodb.get("password", "password")
+
         try:
             conn = MongoClient(host, port)
+            conn.api.authenticate(username,password,mechanism="SCRAM-SHA-1", source=mdb)
             conn.drop_database(mdb)
             conn.close()
         except:

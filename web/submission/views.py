@@ -1,23 +1,25 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
 import os
 import sys
+import pymongo
 
 from django.conf import settings
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect, render_to_response
+from django.template import RequestContext
 from django.core.exceptions import ObjectDoesNotExist
 
-sys.path.insert(0, settings.CUCKOO_PATH)
+sys.path.append(settings.CUCKOO_PATH)
 
 from lib.cuckoo.common.config import Config, parse_options, emit_options
 from lib.cuckoo.common.utils import store_temp_file
 from lib.cuckoo.core.database import Database
 from lib.cuckoo.core.rooter import vpns
 
-results_db = settings.MONGO
+results_db = pymongo.MongoClient(settings.MONGO_HOST, settings.MONGO_PORT)[settings.MONGO_DB]
 cfg = Config()
 
 def force_int(value):
@@ -83,7 +85,8 @@ def render_index(request, kwargs={}):
     }
 
     values.update(kwargs)
-    return render(request, "submission/index.html", values)
+    return render_to_response("submission/index.html", values,
+                              context_instance=RequestContext(request))
 
 def index(request, task_id=None, sha1=None):
     if request.method == "GET":
@@ -113,9 +116,6 @@ def index(request, task_id=None, sha1=None):
 
     if request.POST.get("services"):
         options["services"] = "yes"
-
-    if not request.POST.get("human"):
-        options["human"] = "0"
 
     db = Database()
     task_ids = []
@@ -154,13 +154,13 @@ def index(request, task_id=None, sha1=None):
                 if len(samples) != 1:
                     continue
 
-                return render(request, "error.html", {
-                    "error": "You uploaded an empty file.",
-                })
+                return render_to_response("error.html",
+                                          {"error": "You uploaded an empty file."},
+                                          context_instance=RequestContext(request))
             elif sample.size > settings.MAX_UPLOAD_SIZE:
-                return render(request, "error.html", {
-                    "error": "You uploaded a file that exceeds that maximum allowed upload size.",
-                })
+                return render_to_response("error.html",
+                                          {"error": "You uploaded a file that exceeds that maximum allowed upload size."},
+                                          context_instance=RequestContext(request))
 
             # Moving sample from django temporary file to Cuckoo temporary
             # storage to let it persist between reboot (if user like to
@@ -202,9 +202,9 @@ def index(request, task_id=None, sha1=None):
     else:
         url = request.POST.get("url").strip()
         if not url:
-            return render(request, "error.html", {
-                "error": "You specified an invalid URL!",
-            })
+            return render_to_response("error.html",
+                                      {"error": "You specified an invalid URL!"},
+                                      context_instance=RequestContext(request))
 
         for entry in task_machines:
             task_id = db.add_url(url=url,
@@ -222,30 +222,29 @@ def index(request, task_id=None, sha1=None):
 
     tasks_count = len(task_ids)
     if tasks_count > 0:
-        return render(request, "submission/complete.html", {
-            "tasks": task_ids,
-            "tasks_count": tasks_count,
-            "baseurl": request.build_absolute_uri('/')[:-1],
-        })
+        return render_to_response("submission/complete.html",
+                                  {"tasks": task_ids,
+                                   "tasks_count": tasks_count,
+                                   "baseurl": request.build_absolute_uri('/')[:-1]},
+                                  context_instance=RequestContext(request))
     else:
-        return render(request, "error.html", {
-            "error": "Error adding task to Cuckoo's database.",
-        })
+        return render_to_response("error.html",
+                                  {"error": "Error adding task to Cuckoo's database."},
+                                  context_instance=RequestContext(request))
 
 def status(request, task_id):
     task = Database().view_task(task_id)
     if not task:
-        return render(request, "error.html", {
-            "error": "The specified task doesn't seem to exist.",
-        })
+        return render_to_response("error.html",
+                                  {"error": "The specified task doesn't seem to exist."},
+                                  context_instance=RequestContext(request))
 
     if task.status == "reported":
         return redirect("analysis.views.report", task_id=task_id)
 
-    return render(request, "submission/status.html", {
-        "status": task.status,
-        "task_id": task_id,
-    })
+    return render_to_response("submission/status.html",
+                              {"status": task.status, "task_id": task_id},
+                              context_instance=RequestContext(request))
 
 def resubmit(request, task_id):
     task = Database().view_task(task_id)
@@ -254,22 +253,22 @@ def resubmit(request, task_id):
         return index(request, task_id)
 
     if not task:
-        return render(request, "error.html", {
-            "error": "No Task found with this ID",
-        })
+        return render_to_response("error",
+                                  {"error": "No Task found with this ID"},
+                                  context_instance=RequestContext(request))
 
     if task.category == "file":
         return render_index(request, {
             "sample_id": task.sample_id,
             "file_name": os.path.basename(task.target),
             "resubmit": "file",
-            "options": emit_options(task.options),
+            "options": task.options,
         })
     elif task.category == "url":
         return render_index(request, {
             "url": task.target,
             "resubmit": "URL",
-            "options": emit_options(task.options),
+            "options": task.options,
         })
 
 def submit_dropped(request, task_id, sha1):
@@ -278,14 +277,14 @@ def submit_dropped(request, task_id, sha1):
 
     task = Database().view_task(task_id)
     if not task:
-        return render(request, "error.html", {
-            "error": "No Task found with this ID",
-        })
+        return render_to_response("error",
+                                  {"error": "No Task found with this ID"},
+                                  context_instance=RequestContext(request))
 
     filepath = dropped_filepath(task_id, sha1)
     return render_index(request, {
         "file_name": os.path.basename(filepath),
         "resubmit": "file",
         "dropped_file": True,
-        "options": emit_options(task.options),
+        "options": task.options,
     })

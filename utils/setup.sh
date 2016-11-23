@@ -160,7 +160,7 @@ if [ -n "$SETTINGS" ]; then
 fi
 
 if [ -z "$ISOFILE" ]; then
-    echo "Please specify the path to a Windows XP or Windows 7 Installer ISO."
+    echo "Please specify the path to a Windows XP Installer ISO."
     exit 1
 fi
 
@@ -187,12 +187,12 @@ _clone_cuckoo() {
     # Fetch Cuckoo or in the case of a longterm setup, longcuckoo.
     if [ "$LONGTERM" -eq 0 ]; then
         sudo -u cuckoo -i \
-            git clone --bare https://github.com/cuckoosandbox/cuckoo.git
+            git clone --bare git://github.com/cuckoosandbox/cuckoo.git
 
         gitrepo="cuckoo.git"
     else
         sudo -u cuckoo -i \
-            git clone --bare https://github.com/jbremer/longcuckoo.git
+            git clone --bare git://github.com/jbremer/longcuckoo.git
 
         gitrepo="longcuckoo.git"
     fi
@@ -221,11 +221,6 @@ EOF
             git --work-tree /opt/cuckoo --git-dir "$gitrepo" checkout -f master
     fi
 
-    # Add the Suricata reboot crontab entry.
-    if ! grep suricata.sh <(crontab -l); then
-        (crontab -l ; echo @reboot /opt/cuckoo/utils/suricata.sh)|crontab -
-    fi
-
     # Delete the cuckoo1 machine that is included in the VirtualBox
     # configuration by default.
     sudo -u cuckoo -i "/opt/cuckoo/utils/machine.py" --delete cuckoo1
@@ -243,17 +238,8 @@ _setup() {
             "$DEBVERSION contrib" >> /etc/apt/sources.list.d/virtualbox.list
 
         # Add the VirtualBox public key to our apt repository.
-        wget -q https://www.virtualbox.org/download/oracle_vbox.asc -O- \
-            | apt-key add -
-    fi
-
-    # Add the ElasticSearch apt repository.
-    if [ ! -e /etc/apt/sources.list.d/elasticsearch.list ]; then
-        echo "deb http://packages.elastic.co/elasticsearch/2.x/debian" \
-            "stable main" >> /etc/apt/sources.list.d/elasticsearch.list
-
-        wget -q https://packages.elastic.co/GPG-KEY-elasticsearch -O- \
-            | sudo apt-key add -
+        wget -q https://www.virtualbox.org/download/oracle_vbox.asc \
+            -O- | apt-key add -
     fi
 
     # Update apt repository and install required packages.
@@ -261,8 +247,7 @@ _setup() {
     apt-get install -y --force-yes sudo git python-dev python-pip postgresql \
         libpq-dev python-dpkt vim tcpdump libcap2-bin genisoimage pwgen \
         htop tig mosh mongodb uwsgi uwsgi-plugin-python nginx virtualbox-4.3 \
-        libffi-dev libxml2-dev libxslt1-dev libjpeg-dev samba-common-bin \
-        ethtool elasticsearch linux-headers-$(uname -r)
+        libffi-dev libxml2-dev libxslt1-dev libjpeg-dev
 
     # Create the main postgresql cluster. In recent versions of Ubuntu Server
     # 14.04 you have to do this manually. If it already exists this command
@@ -328,7 +313,7 @@ _setup() {
     /opt/cuckoo/utils/service.sh -c /opt/cuckoo install
 
     # Fetch the community signatures and monitoring binaries.
-    sudo -u cuckoo -i /opt/cuckoo/utils/community.py -wafb master
+    sudo -u cuckoo -i /opt/cuckoo/utils/community.py -wafb 2.0
 
     # Add "nmi_watchdog=0" to the GRUB commandline if it's not in there already.
     if ! grep nmi_watchdog /etc/default/grub; then
@@ -398,7 +383,7 @@ _create_virtual_machines() {
     # Attempt to create a new image if one does not already exist.
     sudo -u cuckoo -i vmcloak init "${EGGNAME}_bird" "$WINOS" $options
     if [ "$?" -eq 0 ]; then
-        sudo -u cuckoo -i vmcloak install "${EGGNAME}_bird" $DEPENDENCIES
+        vmcloak install "${EGGNAME}_bird" $DEPENDENCIES
     fi
 
     # Create various Virtual Machine eggs.
@@ -421,9 +406,6 @@ _create_virtual_machines() {
         echo "Creating Virtual Machine $name.."
         sudo -u cuckoo -i vmcloak snapshot "${EGGNAME}_bird" \
             "$name" "192.168.56.$((2+$i))"
-
-        echo "Registering Virtual Machine $name.."
-        sudo -u cuckoo -i vmcloak register "$name" /opt/cuckoo
     done
 
     rm -rf "$VMCLOAKCONF" "$VMTEMP"

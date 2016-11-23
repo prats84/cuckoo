@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -10,7 +10,6 @@ import subprocess
 
 from lib.cuckoo.common.abstracts import Auxiliary
 from lib.cuckoo.common.constants import CUCKOO_ROOT, CUCKOO_GUEST_PORT
-from lib.cuckoo.common.exceptions import CuckooOperationalError
 
 log = logging.getLogger(__name__)
 
@@ -60,36 +59,33 @@ class Sniffer(Auxiliary):
         pargs.extend(["-w", file_path])
         pargs.extend(["host", self.machine.ip])
 
-        if self.task.options.get("sniffer.debug") != "1":
-            # Do not capture Agent traffic.
-            pargs.extend([
-                "and", "not", "(",
-                "dst", "host", self.machine.ip, "and",
-                "dst", "port", str(CUCKOO_GUEST_PORT),
-                ")", "and", "not", "(",
-                "src", "host", self.machine.ip, "and",
-                "src", "port", str(CUCKOO_GUEST_PORT),
-                ")",
-            ])
+        # Do not capture XMLRPC agent traffic.
+        pargs.extend([
+            "and", "not", "(",
+            "dst", "host", self.machine.ip, "and",
+            "dst", "port", str(CUCKOO_GUEST_PORT),
+            ")", "and", "not", "(",
+            "src", "host", self.machine.ip, "and",
+            "src", "port", str(CUCKOO_GUEST_PORT),
+            ")",
+        ])
 
-            # Do not capture ResultServer traffic.
-            pargs.extend([
-                "and", "not", "(",
-                "dst", "host", self.machine.resultserver_ip, "and",
-                "dst", "port", self.machine.resultserver_port,
-                ")", "and", "not", "(",
-                "src", "host", self.machine.resultserver_ip, "and",
-                "src", "port", self.machine.resultserver_port,
-                ")",
-            ])
+        # Do not capture ResultServer traffic.
+        pargs.extend([
+            "and", "not", "(",
+            "dst", "host", self.machine.resultserver_ip, "and",
+            "dst", "port", self.machine.resultserver_port,
+            ")", "and", "not", "(",
+            "src", "host", self.machine.resultserver_ip, "and",
+            "src", "port", self.machine.resultserver_port,
+            ")",
+        ])
 
-            if bpf:
-                pargs.extend(["and", "(", bpf, ")"])
+        if bpf:
+            pargs.extend(["and", "(", bpf, ")"])
 
         try:
-            self.proc = subprocess.Popen(
-                pargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True
-            )
+            self.proc = subprocess.Popen(pargs)
         except (OSError, ValueError):
             log.exception(
                 "Failed to start sniffer (interface=%s, host=%s, pcap=%s)",
@@ -102,64 +98,21 @@ class Sniffer(Auxiliary):
             self.proc.pid, self.machine.interface, self.machine.ip, file_path,
         )
 
-    def _check_output(self, out, err):
-        if out:
-            raise CuckooOperationalError(
-                "Potential error while running tcpdump, did not expect "
-                "standard output, got: %r." % out
-            )
-
-        err_whitelist = (
-            "packets captured",
-            "packets received by filter",
-            "packets dropped by kernel",
-        )
-
-        for line in err.split("\n"):
-            if not line or line.startswith("tcpdump: listening on "):
-                continue
-
-            if line.endswith(err_whitelist):
-                continue
-
-            raise CuckooOperationalError(
-                "Potential error while running tcpdump, did not expect "
-                "the following standard error output: %r." % line
-            )
-
     def stop(self):
         """Stop sniffing.
         @return: operation status.
         """
-        # The tcpdump process was never started in the first place.
-        if not self.proc:
-            return
-
-        # The tcpdump process has already quit, generally speaking this
-        # indicates an error such as "permission denied".
-        if self.proc.poll():
-            out, err = self.proc.communicate()
-            raise CuckooOperationalError(
-                "Error running tcpdump to sniff the network traffic during "
-                "the analysis; stdout = %r and stderr = %r. Did you enable "
-                "the extra capabilities to allow running tcpdump as non-root "
-                "user and disable AppArmor properly (only applies to Ubuntu)?"
-                % (out, err)
-            )
-
-        try:
-            self.proc.terminate()
-        except:
+        if self.proc and not self.proc.poll():
             try:
-                if not self.proc.poll():
-                    log.debug("Killing sniffer")
-                    self.proc.kill()
-            except OSError as e:
-                log.debug("Error killing sniffer: %s. Continue", e)
-            except Exception as e:
-                log.exception("Unable to stop the sniffer with pid %d: %s",
-                              self.proc.pid, e)
-
-        # Ensure expected output was received from tcpdump.
-        out, err = self.proc.communicate()
-        self._check_output(out, err)
+                self.proc.terminate()
+            except:
+                try:
+                    if not self.proc.poll():
+                        log.debug("Killing sniffer")
+                        self.proc.kill()
+                except OSError as e:
+                    log.debug("Error killing sniffer: %s. Continue", e)
+                    pass
+                except Exception as e:
+                    log.exception("Unable to stop the sniffer with pid %d: %s",
+                                  self.proc.pid, e)

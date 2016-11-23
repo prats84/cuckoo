@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -34,12 +34,12 @@ class SmtpSink(SMTPServer):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="smtp_sinkhole.py",
-                                     usage="%(prog)s [host [port]]",
-                                     description="SMTP Sinkhole")
+                usage="%(prog)s [host [port]]",
+                description="SMTP Sinkhole")
     parser.add_argument("host", nargs="?", default="127.0.0.1")
     parser.add_argument("port", nargs="?", type=int, default=1025)
     parser.add_argument("--dir", default=None,
-                        help="Directory used to dump emails.")
+            help="Directory used to dump emails.")
 
     args = parser.parse_args()
 

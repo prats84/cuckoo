@@ -16,13 +16,9 @@
                     <td>
                         {% for a in p.answers %}
                             {% if a.type == "A" %}
-                                {% if ":" not in a.data %}
-                                    <a target="_blank" href="{% url "analysis.views.moloch" ip=a.data %}">
-                                        {{a.type}} {{a.data|linebreaksbr}}
-                                    </a>
-                                {% else %}
+                                <a target="_blank" href="{% url "analysis.views.moloch" ip=a.data %}">
                                     {{a.type}} {{a.data|linebreaksbr}}
-                                {% endif %}
+                                </a>
                                 {% if not forloop.last %}<br/>{% endif %}
                             {% elif a.type == "CNAME" %}
                                 <a target="_blank" href="{% url "analysis.views.moloch" host=a.data %}">
@@ -35,13 +31,9 @@
                         {% endfor %}
                     </td>
                     <td>
-                        {% if ":" not in domainlookups|get_item:p.request %}
-                            <a target="_blank" href="{% url "analysis.views.moloch" ip=domainlookups|get_item:p.request %}">
-                                {{ domainlookups|get_item:p.request }}
-                            </a>
-                        {% else %}
+                        <a target="_blank" href="{% url "analysis.views.moloch" ip=domainlookups|get_item:p.request %}">
                             {{ domainlookups|get_item:p.request }}
-                        {% endif %}
+                        </a>
                     </td>
                 </tr>
             {% endfor %}

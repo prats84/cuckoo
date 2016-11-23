@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -11,7 +11,6 @@ class XLS(Package):
     """Excel analysis package."""
     PATHS = [
         ("ProgramFiles", "Microsoft Office", "EXCEL.EXE"),
-        ("ProgramFiles", "Microsoft Office", "Office10", "EXCEL.EXE"),
         ("ProgramFiles", "Microsoft Office", "Office11", "EXCEL.EXE"),
         ("ProgramFiles", "Microsoft Office", "Office12", "EXCEL.EXE"),
         ("ProgramFiles", "Microsoft Office", "Office14", "EXCEL.EXE"),
@@ -47,6 +46,4 @@ class XLS(Package):
 
     def start(self, path):
         excel = self.get_path("Microsoft Office Excel")
-        return self.execute(
-            excel, args=[path], mode="office", trigger="file:%s" % path
-        )
+        return self.execute(excel, args=[path])

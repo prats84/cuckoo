@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 # Originally contributed by Check Point Software Technologies, Ltd.
@@ -292,8 +292,6 @@ class Avd(Machinery):
             "shell", "/data/local/agent.sh",
         ]
         OSCommand.executeAsyncCommand(cmd)
-        # Sleep 10 seconds to allow the agent to startup properly
-        time.sleep(10)
 
     def check_adb_recognize_emulator(self, label):
         """Checks that ADB recognizes the emulator. Returns True if device is

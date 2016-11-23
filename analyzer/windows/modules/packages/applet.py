@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -34,6 +34,4 @@ class Applet(Package):
         browser = self.get_path("browser")
         class_name = self.options.get("class")
         html_path = self.make_html(path, class_name)
-        return self.execute(
-            browser, args=[html_path], trigger="file:%s" % html_path
-        )
+        return self.execute(browser, args=[html_path])

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -12,7 +12,7 @@ import argparse
 import tempfile
 from tarfile import TarFile
 
-sys.path.insert(0, os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
+sys.path.append(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
 
 import lib.cuckoo.common.colors as colors
 from lib.cuckoo.common.constants import CUCKOO_ROOT
@@ -77,10 +77,7 @@ def installdir(src, dst, force, rewrite, origin=[]):
             srcpath = os.path.join(src, file_name)
             if os.path.islink(srcpath):
                 if os.path.lexists(destination):
-                    try:
-                        shutil.rmtree(destination)
-                    except OSError:
-                        os.unlink(destination)
+                    os.remove(destination)
                 os.symlink(os.readlink(srcpath), destination)
                 print "Symbolic link \"%s/%s\" -> \"%s\" %s" % (
                     "/".join(origin), file_name, os.readlink(srcpath),

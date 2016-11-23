@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -11,7 +11,6 @@ class PPT(Package):
     """PowerPoint analysis package."""
     PATHS = [
         ("ProgramFiles", "Microsoft Office", "POWERPNT.EXE"),
-        ("ProgramFiles", "Microsoft Office", "Office10", "POWERPNT.EXE"),
         ("ProgramFiles", "Microsoft Office", "Office11", "POWERPNT.EXE"),
         ("ProgramFiles", "Microsoft Office", "Office12", "POWERPNT.EXE"),
         ("ProgramFiles", "Microsoft Office", "Office14", "POWERPNT.EXE"),
@@ -47,7 +46,4 @@ class PPT(Package):
 
     def start(self, path):
         powerpoint = self.get_path("Microsoft Office PowerPoint")
-        return self.execute(
-            powerpoint, args=["/S", path], mode="office",
-            trigger="file:%s" % path
-        )
+        return self.execute(powerpoint, args=[path])

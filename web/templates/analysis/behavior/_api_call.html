@@ -2,7 +2,7 @@
 <td>
     {{call.time}}<br/>
     <strong>{{call.api}}</strong>
-    {% if pid %}
+    {% if pid and cid %}
         <br />
         <a href="#" class="call-link" data-pid="{{pid}}" data-cid="{{cid}}">
             <span class="glyphicon glyphicon-circle-arrow-right"></span>
@@ -20,16 +20,12 @@
         {% else %}
             <span class="gray">{{key}}:</span>
             {% if key in call.raw %}
-                {% for v in value|ensurelist %}
-                    <pre>{{v}}</pre>
-                {% endfor %}
+                <pre>{{value}}</pre>
             {% else %}
-                {% for v in value|ensurelist %}
-                    <span class="mono">{{v}}</span>
-                {% endfor %}
+                <span class="mono">{{value}}</span>
             {% endif %}
             {% if key in call.flags %}
-                <span class="gray">({{ call.flags|get_item:key|ensurelist|join:", " }})</span>
+                <span class="gray">({{ call.flags|get_item:key }})</span>
             {% endif %}
             <br />
         {% endif %}

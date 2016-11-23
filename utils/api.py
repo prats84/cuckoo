@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -18,7 +18,7 @@ try:
 except ImportError:
     sys.exit("ERROR: Flask library is missing (`pip install flask`)")
 
-sys.path.insert(0, os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
+sys.path.append(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
 
 from lib.cuckoo.common.constants import CUCKOO_VERSION, CUCKOO_ROOT
 from lib.cuckoo.common.utils import store_temp_file, delete_folder
@@ -210,19 +210,15 @@ def tasks_view(task_id):
     return jsonify(response)
 
 @app.route("/tasks/reschedule/<int:task_id>")
-@app.route("/tasks/reschedule/<int:task_id>/<int:priority>")
 @app.route("/v1/tasks/reschedule/<int:task_id>")
-@app.route("/v1/tasks/reschedule/<int:task_id>/<int:priority>")
-def tasks_reschedule(task_id, priority=None):
+def tasks_reschedule(task_id):
     response = {}
 
     if not db.view_task(task_id):
         return json_error(404, "There is no analysis with the specified ID")
 
-    new_task_id = db.reschedule(task_id, priority)
-    if new_task_id:
+    if db.reschedule(task_id):
         response["status"] = "OK"
-        response["task_id"] = new_task_id
     else:
         return json_error(500, "An error occurred while trying to "
                           "reschedule the task")
@@ -290,8 +286,6 @@ def tasks_report(task_id, report_format="json"):
         tar = tarfile.open(fileobj=s, mode=tarmode, dereference=True)
         for filedir in os.listdir(srcdir):
             filepath = os.path.join(srcdir, filedir)
-            if not os.path.exists(filepath):
-                continue
             if bzf["type"] == "-" and filedir not in bzf["files"]:
                 tar.add(filepath, arcname=filedir)
             if bzf["type"] == "+" and filedir in bzf["files"]:
@@ -306,12 +300,7 @@ def tasks_report(task_id, report_format="json"):
         return json_error(400, "Invalid report format")
 
     if os.path.exists(report_path):
-        if report_format == "json":
-            response = make_response(open(report_path, "rb").read())
-            response.headers["Content-Type"] = "application/json"
-            return response
-        else:
-            return open(report_path, "rb").read()
+        return open(report_path, "rb").read()
     else:
         return json_error(404, "Report not found")
 
@@ -356,14 +345,6 @@ def rereport(task_id):
         return jsonify(success=False)
     else:
         return json_error(404, "Task not found")
-
-@app.route("/tasks/reboot/<int:task_id>")
-def reboot(task_id):
-    reboot_id = Database().add_reboot(task_id=task_id)
-    if not reboot_id:
-        return json_error(404, "Error creating reboot task")
-
-    return jsonify(task_id=task_id, reboot_id=reboot_id)
 
 @app.route("/files/view/md5/<md5>")
 @app.route("/v1/files/view/md5/<md5>")
@@ -527,7 +508,7 @@ def memorydumps_list(task_id):
         if len(memory_files) == 0:
             return json_error(404, "Memory dump not found")
 
-        return jsonify({"dump_files": memory_files})
+        return jsonify(memory_files)
     else:
         return json_error(404, "Memory dump not found")
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -27,21 +27,18 @@ RESOLUTION = {
 def foreach_child(hwnd, lparam):
     # List of buttons labels to click.
     buttons = [
-        "yes", "oui",
+        "yes",
         "ok",
-        "accept", "accepter",
-        "next", "suivant",
-        "install", "installer",
+        "accept",
+        "next",
+        "install",
         "run",
-        "agree", "j'accepte",
-        "enable", "activer",
-        "don't send", "ne pas envoyer",
-        "continue", "continuer",
-        "unzip", "dezip",
-        "open", "ouvrir",
-        "execute", "executer",
-        "launch", "lancer",
-        "save", "sauvegarder"
+        "agree",
+        "enable",
+        "don't send",
+        "continue",
+        "unzip",
+        "open",
     ]
 
     # List of buttons labels to not click.
@@ -53,7 +50,7 @@ def foreach_child(hwnd, lparam):
     USER32.GetClassNameW(hwnd, classname, 50)
 
     # Check if the class of the child is button.
-    if "button" in classname.value.lower():
+    if classname.value == "Button":
         # Get the text of the button.
         length = USER32.SendMessageW(hwnd, WM_GETTEXTLENGTH, 0, 0)
         text = create_unicode_buffer(length + 1)

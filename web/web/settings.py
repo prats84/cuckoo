@@ -6,6 +6,7 @@
 import os
 import pymongo
 import sys
+from pymongo import MongoClient
 
 # Cuckoo path.
 CUCKOO_PATH = os.path.join(os.getcwd(), "..")
@@ -23,11 +24,18 @@ if not cfg.mongodb.get("enabled"):
 MONGO_HOST = cfg.mongodb.get("host", "127.0.0.1")
 MONGO_PORT = cfg.mongodb.get("port", 27017)
 MONGO_DB = cfg.mongodb.get("db", "cuckoo")
+username = cfg.mongodb.get("username","dbadmin")
+password = cfg.mongodb.get("password", "password")
+
 
 try:
-    MONGO = pymongo.MongoClient(MONGO_HOST, MONGO_PORT)[MONGO_DB]
+    MONGO = MongoClient(MONGO_HOST,MONGO_PORT)
+    MONGO.api.authenticate(username,password,mechanism="SCRAM-SHA-1", source=MONGO_DB)
+    MONGO[MONGO_DB] 
 except Exception as e:
     raise Exception("Unable to connect to Mongo: %s" % e)
+
+
 
 if cfg.elasticsearch.get("enabled"):
     try:

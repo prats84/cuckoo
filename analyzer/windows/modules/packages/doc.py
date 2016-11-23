@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -11,13 +11,11 @@ class DOC(Package):
     """Word analysis package."""
     PATHS = [
         ("ProgramFiles", "Microsoft Office", "WINWORD.EXE"),
-        ("ProgramFiles", "Microsoft Office", "Office10", "WINWORD.EXE"),
         ("ProgramFiles", "Microsoft Office", "Office11", "WINWORD.EXE"),
         ("ProgramFiles", "Microsoft Office", "Office12", "WINWORD.EXE"),
         ("ProgramFiles", "Microsoft Office", "Office14", "WINWORD.EXE"),
         ("ProgramFiles", "Microsoft Office", "Office15", "WINWORD.EXE"),
         ("ProgramFiles", "Microsoft Office 15", "root", "office15", "WINWORD.EXE"),
-        ("ProgramFiles", "Microsoft Office", "root", "Office16", "WINWORD.EXE"),
         ("ProgramFiles", "Microsoft Office", "WORDVIEW.EXE"),
     ]
 
@@ -45,19 +43,8 @@ class DOC(Package):
                 "ExtensionHardening": 0,
             },
         ],
-        [
-            HKEY_CURRENT_USER,
-            "Software\\Microsoft\\Office\\16.0\\Word\\Security",
-            {
-                # Enable VBA macros in Office 2016.
-                "VBAWarnings": 1,
-                "AccessVBOM": 1,
-            },
-        ],
     ]
 
     def start(self, path):
         word = self.get_path("Microsoft Office Word")
-        return self.execute(
-            word, args=[path], mode="office", trigger="file:%s" % path
-        )
+        return self.execute(word, args=[path])

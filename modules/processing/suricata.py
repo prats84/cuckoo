@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -43,23 +43,20 @@ class Suricata(Processing):
             raise CuckooProcessingError(
                 "Suricata has been configured to run in socket mode but "
                 "suricatasc has not been installed, please re-install "
-                "Suricata or SuricataSC"
-            )
+                "Suricata or SuricataSC")
 
         if not os.path.exists(self.socket):
             raise CuckooProcessingError(
                 "Suricata has been configured to run in socket mode "
-                "but the socket is unavailable"
-            )
+                "but the socket is unavailable")
 
         suri = suricatasc.SuricataSC(self.socket)
 
         try:
             suri.connect()
         except suricatasc.SuricataException as e:
-            raise CuckooProcessingError(
-                "Error connecting to Suricata in socket mode: %s" % e
-            )
+            raise CuckooProcessingError("Error connecting to Suricata in "
+                                        "socket mode: %s" % e)
 
         # Submit the PCAP file.
         ret = suri.send_command("pcap-file", {
@@ -70,8 +67,7 @@ class Suricata(Processing):
         if not ret or ret["return"] != "OK":
             raise CuckooProcessingError(
                 "Error submitting PCAP file to Suricata in socket mode, "
-                "return value: %s" % ret
-            )
+                "return value: %s" % ret)
 
         # TODO Should we add a timeout here? If we do so we should also add
         # timeout logic to the binary mode.
@@ -97,8 +93,7 @@ class Suricata(Processing):
 
         if not os.path.isfile(self.config_path):
             raise CuckooProcessingError(
-                "Unable to locate Suricata configuration"
-            )
+                "Unable to locate Suricata configuration")
 
         args = [
             self.suricata,
@@ -112,8 +107,7 @@ class Suricata(Processing):
             subprocess.check_call(args)
         except subprocess.CalledProcessError as e:
             raise CuckooProcessingError(
-                "Suricata returned an error processing this pcap: %s" % e
-            )
+                "Suricata returned an error processing this pcap: %s" % e)
 
     def parse_eve_json(self):
         """Parse the eve.json file."""
@@ -129,27 +123,24 @@ class Suricata(Processing):
                 alert = event["alert"]
 
                 if alert["signature_id"] in self.sid_blacklist:
-                    log.debug(
-                        "Ignoring alert with sid=%d, signature=%s",
-                        alert["signature_id"], alert["signature"]
-                    )
+                    log.debug("Ignoring alert with sid=%d, signature=%s",
+                              alert["signature_id"], alert["signature"])
                     continue
 
                 if alert["signature"].startswith("SURICATA STREAM"):
-                    log.debug(
-                        "Ignoring alert starting with \"SURICATA STREAM\""
-                    )
+                    log.debug("Ignoring alert starting with "
+                              "\"SURICATA STREAM\"")
                     continue
 
                 self.results["alerts"].append({
                     "sid": alert["signature_id"],
-                    "src_ip": event.get("src_ip"),
-                    "src_port": event.get("src_port"),
+                    "src_ip": event["src_ip"],
+                    "src_port": event["src_port"],
                     "dst_ip": event["dest_ip"],
-                    "dst_port": event.get("dest_port"),
-                    "protocol": event.get("proto"),
-                    "timestamp": event.get("timestamp"),
-                    "category": alert.get("category") or "undefined",
+                    "dst_port": event["dest_port"],
+                    "protocol": event["proto"],
+                    "timestamp": event["timestamp"],
+                    "category": alert["category"] or "undefined",
                     "signature": alert["signature"],
                 })
 
@@ -165,11 +156,11 @@ class Suricata(Processing):
                     user_agent = None
 
                 self.results["http"].append({
-                    "src_ip": event.get("src_ip"),
-                    "src_port": event.get("src_port"),
-                    "dst_ip": event.get("dest_ip"),
-                    "dst_port": event.get("dest_port"),
-                    "timestamp": event.get("timestamp"),
+                    "src_ip": event["src_ip"],
+                    "src_port": event["src_port"],
+                    "dst_ip": event["dest_ip"],
+                    "dst_port": event["dest_port"],
+                    "timestamp": event["timestamp"],
                     "method": http.get("http_method"),
                     "hostname": http.get("hostname"),
                     "url": http.get("url"),
@@ -184,15 +175,15 @@ class Suricata(Processing):
                 tls = event["tls"]
 
                 self.results["tls"].append({
-                    "src_ip": event.get("src_ip"),
-                    "src_port": event.get("src_port"),
-                    "dst_ip": event.get("dest_ip"),
-                    "dst_port": event.get("dest_port"),
-                    "timestamp": event.get("timestamp"),
-                    "fingerprint": tls.get("fingerprint"),
-                    "issuer": tls.get("issuerdn"),
-                    "version": tls.get("version"),
-                    "subject": tls.get("subject"),
+                    "src_ip": event["src_ip"],
+                    "src_port": event["src_port"],
+                    "dst_ip": event["dest_ip"],
+                    "dst_port": event["dest_port"],
+                    "timestamp": event["timestamp"],
+                    "fingerprint": tls["fingerprint"],
+                    "issuer": tls["issuerdn"],
+                    "version": tls["version"],
+                    "subject": tls["subject"],
                 })
 
     def parse_files(self):
@@ -206,10 +197,6 @@ class Suricata(Processing):
 
         # Index all the available files.
         files_dir = os.path.join(self.suricata_path, self.files_dir)
-        if not os.path.exists(files_dir):
-            log.warning("Suricata files dir is not available. Maybe you forgot to enable Suricata file-store ?")
-            return
-
         for filename in os.listdir(files_dir):
             filepath = os.path.join(files_dir, filename)
             files[md5_file(filepath)] = filepath
@@ -228,10 +215,9 @@ class Suricata(Processing):
                 filepath = None
 
             if not filepath or not os.path.isfile(filepath):
-                log.warning(
-                    "Suricata dropped file with id=%s and md5=%s not found, "
-                    "skipping it..", event.get("id"), event.get("md5")
-                )
+                log.warning("Suricata dropped file with id=%d and md5=%s not "
+                            "found, skipping it..", event.get("id"),
+                            event.get("md5"))
                 continue
 
             referer = event.get("http_referer")

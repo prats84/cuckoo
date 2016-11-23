@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -84,16 +84,6 @@ QEMU_ARGS = {
     "x64": {
         "cmdline": [
             "qemu-system-x86_64", "-display", "none", "-m", "{memory}",
-            "-hda", "{snapshot_path}",
-            "-net", "tap,ifname=tap_{vmname}", "-net", "nic,macaddr={mac}",  # this by default needs /etc/qemu-ifup to add the tap to the bridge, slightly awkward
-        ],
-        "params": {
-            "memory": "1024M",
-        }
-    },
-    "x86": {
-        "cmdline": [
-            "qemu-system-i386", "-display", "none", "-m", "{memory}",
             "-hda", "{snapshot_path}",
             "-net", "tap,ifname=tap_{vmname}", "-net", "nic,macaddr={mac}",  # this by default needs /etc/qemu-ifup to add the tap to the bridge, slightly awkward
         ],

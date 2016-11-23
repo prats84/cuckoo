@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -13,7 +13,7 @@ import signal
 import multiprocessing
 import traceback
 
-sys.path.insert(0, os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
+sys.path.append(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
 
 from lib.cuckoo.common.config import Config
 from lib.cuckoo.common.constants import CUCKOO_ROOT
@@ -138,11 +138,7 @@ def autoprocess(parallel=1):
                     copy_path = None
 
                 args = task.target, copy_path
-                kwargs = {
-                    "report": True,
-                    "auto": True,
-                    "task": dict(task.to_dict()),
-                }
+                kwargs = dict(report=True, auto=True, task=task.to_dict())
                 result = pool.apply_async(process_wrapper, args, kwargs)
                 pending_results[task.id] = result
     except KeyboardInterrupt:
@@ -186,13 +182,7 @@ def main():
     else:
         task = Database().view_task(int(args.id))
         if not task:
-            task = {
-                "id": int(args.id),
-                "category": "file",
-                "target": "",
-                "options": "",
-            }
-            process(task=task, report=args.report)
+            process(task={"id": int(args.id), "category": "file", "target": ""}, report=args.report)
         else:
             process(task=task.to_dict(), report=args.report)
 

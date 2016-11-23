@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -9,7 +9,6 @@ NTDLL    = windll.ntdll
 KERNEL32 = windll.kernel32
 ADVAPI32 = windll.advapi32
 USER32   = windll.user32
-SHELL32  = windll.shell32
 
 BYTE      = c_ubyte
 WORD      = c_ushort
@@ -85,8 +84,6 @@ FILE_ATTRIBUTE_HIDDEN     = 0x00000002
 WM_GETTEXT                = 0x0000000D
 WM_GETTEXTLENGTH          = 0x0000000E
 BM_CLICK                  = 0x000000F5
-
-SHARD_PATHA               = 0x00000002
 
 class STARTUPINFO(Structure):
     _fields_ = [
@@ -171,17 +168,4 @@ class SYSTEM_INFO(Structure):
         ("dwAllocationGranularity", DWORD),
         ("wProcessorLevel", WORD),
         ("wProcessorRevision", WORD),
-    ]
-
-class SYSTEMTIME(Structure):
-    _pack_ = 1
-    _fields_ = [
-        ("wYear", WORD),
-        ("wMonth", WORD),
-        ("wDayOfWeek", WORD),
-        ("wDay", WORD),
-        ("wHour", WORD),
-        ("wMinute", WORD),
-        ("wSecond", WORD),
-        ("wMilliseconds", WORD),
     ]

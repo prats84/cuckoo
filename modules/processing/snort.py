@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -38,7 +38,7 @@ class Snort(Processing):
 
         if not os.path.isfile(self.pcap_path):
             log.warning("Unable to run Snort as no pcap is available")
-            return results
+            return self.results
 
         if not os.path.isfile(self.snort):
             raise CuckooProcessingError("Unable to locate Snort binary")

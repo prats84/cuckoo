@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -14,14 +14,16 @@ import stat
 import subprocess
 import sys
 
+sys.path.append(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
+
+from lib.cuckoo.common.config import Config
+
 def run(*args):
-    """Wrapper to Popen."""
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = p.communicate()
     return stdout, stderr
 
 def nic_available(interface):
-    """Check if specified network interface is available."""
     try:
         subprocess.check_call([settings.ifconfig, interface],
                               stdout=subprocess.PIPE,
@@ -30,20 +32,9 @@ def nic_available(interface):
     except subprocess.CalledProcessError:
         return False
 
-def rt_available(rt_table):
-    """Check if specified routing table is defined."""
-    try:
-        subprocess.check_call([settings.ip, "route", "list", "table", rt_table],
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE)
-        return True
-    except subprocess.CalledProcessError:
-        return False
-
 def vpn_status():
-    """Gets current VPN status."""
     ret = {}
-    for line in run(settings.service, "openvpn", "status")[0].split("\n"):
+    for line in run(settings.openvpn, "status")[0].split("\n"):
         x = re.search("'(?P<vpn>\\w+)'\\ is\\ (?P<running>not)?", line)
         if x:
             ret[x.group("vpn")] = x.group("running") != "not"
@@ -52,11 +43,11 @@ def vpn_status():
 
 def vpn_enable(name):
     """Start a VPN."""
-    run(settings.service, "openvpn", "start", name)
+    run(settings.openvpn, "start", name)
 
 def vpn_disable(name):
     """Stop a running VPN."""
-    run(settings.service, "openvpn", "stop", name)
+    run(settings.openvpn, "stop", name)
 
 def forward_drop():
     """Disable any and all forwarding unless explicitly said so."""
@@ -69,28 +60,8 @@ def enable_nat(interface):
 
 def disable_nat(interface):
     """Disable NAT on this interface."""
-    while not run(settings.iptables, "-t", "nat", "-D", "POSTROUTING",
-                  "-o", interface, "-j", "MASQUERADE")[1]:
-        pass
-
-def init_rttable(rt_table, interface):
-    """Initialise routing table for this interface using routes
-    from main table."""
-    if rt_table in ["local", "main", "default"]:
-        return
-
-    stdout, _ = run(settings.ip, "route", "list", "dev", interface)
-    for line in stdout.split("\n"):
-        args = ["route", "add"] + [x for x in line.split(" ") if x]
-        args += ["dev", interface, "table", rt_table]
-        run(settings.ip, *args)
-
-def flush_rttable(rt_table):
-    """Flushes specified routing table entries."""
-    if rt_table in ["local", "main", "default"]:
-        return
-
-    run(settings.ip, "route", "flush", "table", rt_table)
+    run(settings.iptables, "-t", "nat", "-D", "POSTROUTING",
+        "-o", interface, "-j", "MASQUERADE")
 
 def forward_enable(src, dst, ipaddr):
     """Enable forwarding a specific IP address from one interface into
@@ -110,59 +81,36 @@ def forward_disable(src, dst, ipaddr):
     run(settings.iptables, "-D", "FORWARD", "-i", dst, "-o", src,
         "--destination", ipaddr, "-j", "ACCEPT")
 
-def srcroute_enable(rt_table, ipaddr):
-    """Enable routing policy for specified source IP address."""
-    run(settings.ip, "rule", "add", "from", ipaddr, "table", rt_table)
-    run(settings.ip, "route", "flush", "cache")
-
-def srcroute_disable(rt_table, ipaddr):
-    """Disable routing policy for specified source IP address."""
-    run(settings.ip, "rule", "del", "from", ipaddr, "table", rt_table)
-    run(settings.ip, "route", "flush", "cache")
-
 handlers = {
     "nic_available": nic_available,
-    "rt_available": rt_available,
     "vpn_status": vpn_status,
     "vpn_enable": vpn_enable,
     "vpn_disable": vpn_disable,
     "forward_drop": forward_drop,
     "enable_nat": enable_nat,
     "disable_nat": disable_nat,
-    "init_rttable": init_rttable,
-    "flush_rttable": flush_rttable,
     "forward_enable": forward_enable,
     "forward_disable": forward_disable,
-    "srcroute_enable": srcroute_enable,
-    "srcroute_disable": srcroute_disable,
 }
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("socket", nargs="?", default="/tmp/cuckoo-rooter",
-                        help="Unix socket path")
-    parser.add_argument("-g", "--group", default="cuckoo",
-                        help="Unix socket group")
-    parser.add_argument("--ifconfig", default="/sbin/ifconfig",
-                        help="Path to ifconfig")
-    parser.add_argument("--service", default="/usr/sbin/service",
-                        help="Service wrapper script for invoking OpenVPN")
-    parser.add_argument("--iptables", default="/sbin/iptables",
-                        help="Path to iptables")
-    parser.add_argument("--ip", default="/sbin/ip", help="Path to ip")
-    parser.add_argument("-v", "--verbose", action="store_true",
-                        help="Enable verbose logging")
+    parser.add_argument("socket", nargs="?", default="/tmp/cuckoo-rooter", help="Unix socket path")
+    parser.add_argument("-g", "--group", default="cuckoo", help="Unix socket group")
+    parser.add_argument("--ifconfig", default="/sbin/ifconfig", help="Path to ifconfig")
+    parser.add_argument("--openvpn", default="/etc/init.d/openvpn", help="Path to openvpn")
+    parser.add_argument("--iptables", default="/sbin/iptables", help="Path to iptables")
     settings = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
     log = logging.getLogger("cuckoo-rooter")
 
-    if not settings.service or not os.path.exists(settings.service):
-        sys.exit(
-            "The service binary is not available, please configure it!\n"
-            "Note that on CentOS you should provide --service /sbin/service, "
-            "rather than using the Ubuntu/Debian default /usr/sbin/service."
-        )
+    # Read configuration provided by Cuckoo.
+    cuckoo = Config()
+    vpn = Config("vpn")
+
+    if not settings.openvpn or not os.path.exists(settings.openvpn):
+        sys.exit("OpenVPN binary is not available, please configure!")
 
     if not settings.ifconfig or not os.path.exists(settings.ifconfig):
         sys.exit("The `ifconfig` binary is not available, eh?!")
@@ -223,13 +171,6 @@ if __name__ == "__main__":
                 log.info("Invalid argument detected: %r", arg)
                 break
         else:
-            if settings.verbose:
-                log.info(
-                    "Processing command: %s %s %s", command,
-                    " ".join(args),
-                    " ".join("%s=%s" % (k, v) for k, v in kwargs.items())
-                )
-
             output = e = None
             try:
                 output = handlers[command](*args, **kwargs)

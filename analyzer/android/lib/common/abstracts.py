@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 # Originally contributed by Check Point Software Technologies, Ltd.
@@ -18,7 +18,7 @@ class Package(object):
         self.pids = pids
 
     def start(self):
-        """Run analysis package.
+        """Run analysis packege.
         @param path: sample path.
         @raise NotImplementedError: this method is abstract.
         """

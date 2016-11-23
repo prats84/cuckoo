@@ -45,6 +45,7 @@ $(function () {
             } else {
                 var out = $("<ul class=\"tcp-flow\">");
                 var first = undefined;
+                console.log("get result", data, status, xhr);
                 for (var i in data) {
                     var p = data[i];
                     var tuple = p.src + ":" + p.sport + " &rarr; " + p.dst + ":" + p.dport;
@@ -62,6 +63,7 @@ $(function () {
                     out.append(li);
                 }
                 $section.find("div.stream").html(out);
+                console.log(out);
             }
         });
     });

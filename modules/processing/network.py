@@ -1,9 +1,8 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
-import hashlib
 import logging
 import json
 import os
@@ -15,11 +14,10 @@ import urlparse
 
 from lib.cuckoo.common.abstracts import Processing
 from lib.cuckoo.common.config import Config
-from lib.cuckoo.common.constants import LATEST_HTTPREPLAY, CUCKOO_ROOT
 from lib.cuckoo.common.dns import resolve
 from lib.cuckoo.common.irc import ircMessage
 from lib.cuckoo.common.objects import File
-from lib.cuckoo.common.utils import convert_to_printable, versiontuple
+from lib.cuckoo.common.utils import convert_to_printable
 from lib.cuckoo.common.exceptions import CuckooProcessingError
 
 try:
@@ -52,32 +50,17 @@ Packet = namedtuple("Packet", ["raw", "ts"])
 log = logging.getLogger(__name__)
 cfg = Config()
 
-# Urge users to upgrade to the latest version.
-_v = getattr(httpreplay, "__version__", None) if HAVE_HTTPREPLAY else None
-if _v and versiontuple(_v) < versiontuple(LATEST_HTTPREPLAY):
-    log.warning(
-        "You are using version %s of HTTPReplay, rather than the latest "
-        "version %s, which may not handle various corner cases and/or TLS "
-        "cipher suites correctly. This could result in not getting all the "
-        "HTTP/HTTPS streams that are available or corrupt some streams that "
-        "were not handled correctly before. Please upgrade it to the latest "
-        "version (`pip install --upgrade httpreplay`).",
-        _v, LATEST_HTTPREPLAY,
-    )
-
 class Pcap(object):
     """Reads network data from PCAP file."""
     ssl_ports = 443,
 
     notified_dpkt = False
 
-    def __init__(self, filepath, options):
+    def __init__(self, filepath):
         """Creates a new instance.
         @param filepath: path to PCAP file
-        @param options: config options
         """
         self.filepath = filepath
-        self.options = options
 
         # List of all hosts.
         self.hosts = []
@@ -92,7 +75,6 @@ class Pcap(object):
         # addresses that are no longer available.
         self.tcp_connections_dead = {}
         self.dead_hosts = {}
-        self.alive_hosts = {}
         # List containing all UDP packets.
         self.udp_connections = []
         self.udp_connections_seen = set()
@@ -113,63 +95,6 @@ class Pcap(object):
         self.irc_requests = []
         # Dictionary containing all the results of this processing.
         self.results = {}
-        # List containing all whitelist entries.
-        self.whitelist = self._build_whitelist()
-        # List for holding whitelisted IP-s according to DNS responses
-        self.whitelist_ips = []
-        # state of whitelisting
-        self.whitelist_enabled = self._build_whitelist_conf()
-        # List of known good DNS servers
-        self.known_dns = self._build_known_dns()
-
-    def _build_whitelist(self):
-        result = []
-        whitelist_path = os.path.join(
-            CUCKOO_ROOT, "data", "whitelist", "domain.txt"
-        )
-        for line in open(whitelist_path, 'rb'):
-            result.append(line.strip())
-        return result
-
-    def _build_whitelist_conf(self):
-        """Check if whitelisting is enabled."""
-        if not self.options.get("whitelist-dns"):
-            log.debug("Whitelisting Disabled.")
-            return False
-
-        return True
-
-    def _is_whitelisted(self, conn, hostname):
-        """Checks if whitelisting conditions are met"""
-        # is whitelistng enabled ?
-        if not self.whitelist_enabled:
-            return False
-        
-        # is DNS recording coming from allowed NS server
-        if not self.known_dns:
-            pass
-        elif (conn.get("src") in self.known_dns or 
-              conn.get("dst") in self.known_dns):
-            pass
-        else:
-            return False
-
-        # is hostname whitelisted
-        if hostname not in self.whitelist:
-            return False
-        
-        return True
-
-    def _build_known_dns(self):
-        """Build known DNS list."""
-        result = []
-        _known_dns = self.options.get("allowed-dns")
-        if _known_dns is not None:
-            for r in _known_dns.split(","):
-                result.append(r.strip())
-            return result
-
-        return []
 
     def _dns_gethostbyname(self, name):
         """Get host by name wrapper.
@@ -251,7 +176,7 @@ class Pcap(object):
                     # We add external IPs to the list, only the first time
                     # we see them and if they're the destination of the
                     # first packet they appear in.
-                    if not self._is_private_ip(ip) and ip not in self.whitelist_ips:
+                    if not self._is_private_ip(ip):
                         self.unique_hosts.append(ip)
         except:
             pass
@@ -284,7 +209,7 @@ class Pcap(object):
         # Select DNS and MDNS traffic.
         if conn["dport"] == 53 or conn["sport"] == 53 or conn["dport"] == 5353 or conn["sport"] == 5353:
             if self._check_dns(data):
-                self._add_dns(conn, data)
+                self._add_dns(data)
 
     def _check_icmp(self, icmp_data):
         """Checks for ICMP traffic.
@@ -332,7 +257,7 @@ class Pcap(object):
 
         return True
 
-    def _add_dns(self, conn, udpdata):
+    def _add_dns(self, udpdata):
         """Adds a DNS data flow.
         @param udpdata: UDP data flow.
         """
@@ -340,8 +265,6 @@ class Pcap(object):
 
         # DNS query parsing.
         query = {}
-        # Temporary list for found A or AAAA responses.
-        _ip = []
 
         if dns.rcode == dpkt.dns.DNS_RCODE_NOERR or \
                 dns.qr == dpkt.dns.DNS_R or \
@@ -353,13 +276,10 @@ class Pcap(object):
             except IndexError:
                 return False
 
-            # DNS RR type mapping.
-            # See: http://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4
-            # See: https://github.com/kbandla/dpkt/blob/master/dpkt/dns.py#L42
             query["request"] = q_name
             if q_type == dpkt.dns.DNS_A:
                 query["type"] = "A"
-            elif q_type == dpkt.dns.DNS_AAAA:
+            if q_type == dpkt.dns.DNS_AAAA:
                 query["type"] = "AAAA"
             elif q_type == dpkt.dns.DNS_CNAME:
                 query["type"] = "CNAME"
@@ -377,12 +297,6 @@ class Pcap(object):
                 query["type"] = "TXT"
             elif q_type == dpkt.dns.DNS_SRV:
                 query["type"] = "SRV"
-            elif q_type == dpkt.dns.DNS_ANY:
-                # For example MDNS requests have q_type=255.
-                query["type"] = "All"
-            else:
-                # Some requests are not parsed by dpkt.
-                query["type"] = "None"
 
             # DNS answer.
             query["answers"] = []
@@ -392,7 +306,6 @@ class Pcap(object):
                     ans["type"] = "A"
                     try:
                         ans["data"] = socket.inet_ntoa(answer.rdata)
-                        _ip.append(ans["data"])
                     except socket.error:
                         continue
                 elif answer.type == dpkt.dns.DNS_AAAA:
@@ -400,7 +313,6 @@ class Pcap(object):
                     try:
                         ans["data"] = socket.inet_ntop(socket.AF_INET6,
                                                        answer.rdata)
-                        _ip.append(ans["data"])
                     except (socket.error, ValueError):
                         continue
                 elif answer.type == dpkt.dns.DNS_CNAME:
@@ -433,11 +345,6 @@ class Pcap(object):
 
                 # TODO: add srv handling
                 query["answers"].append(ans)
-
-            if self._is_whitelisted(conn, q_name):
-                log.debug("DNS target {0} whitelisted. Skipping ...".format(q_name))
-                self.whitelist_ips = self.whitelist_ips + _ip
-                return True
 
             self._add_domain(query["request"])
 
@@ -691,8 +598,6 @@ class Pcap(object):
                         if not ((dst, dport, src, sport) in self.tcp_connections_seen or (src, sport, dst, dport) in self.tcp_connections_seen):
                             self.tcp_connections.append((src, sport, dst, dport, offset, ts-first_ts))
                             self.tcp_connections_seen.add((src, sport, dst, dport))
-
-                        self.alive_hosts[dst, dport] = True
                     else:
                         ipconn = (
                             connection["src"], tcp.sport,
@@ -755,14 +660,11 @@ class Pcap(object):
         self.results["dead_hosts"] = []
 
         # Report each IP/port combination as a dead host if we've had to retry
-        # at least 3 times to connect to it and if no successful connections
-        # were detected throughout the analysis.
+        # at least 3 times to connect to it. TODO We should remove the IP/port
+        # combination from the list if the connection was successful later on
+        # during the analysis.
         for (ip, port), count in self.dead_hosts.items():
-            if count < 3 or (ip, port) in self.alive_hosts:
-                continue
-
-            # Report once.
-            if (ip, port) not in self.results["dead_hosts"]:
+            if count > 2 and (ip, port) not in self.results["dead_hosts"]:
                 self.results["dead_hosts"].append((ip, port))
 
         return self.results
@@ -772,9 +674,8 @@ class Pcap2(object):
     the various protocols, decrypts and decodes them, and then provides us
     with the high level representation of it."""
 
-    def __init__(self, pcap_path, tlsmaster, network_path):
+    def __init__(self, pcap_path, tlsmaster):
         self.pcap_path = pcap_path
-        self.network_path = network_path
 
         self.handlers = {
             25: httpreplay.cut.smtp_handler,
@@ -791,38 +692,20 @@ class Pcap2(object):
             "https_ex": [],
         }
 
-        if not os.path.exists(self.network_path):
-            os.mkdir(self.network_path)
-
-        r = httpreplay.reader.PcapReader(open(self.pcap_path, "rb"))
+        r = httpreplay.reader.PcapReader(self.pcap_path)
         r.tcp = httpreplay.smegma.TCPPacketStreamer(r, self.handlers)
 
-        l = sorted(r.process(), key=lambda x: x[1])
-        for s, ts, protocol, sent, recv in l:
+        for s, ts, protocol, sent, recv in r.process():
             srcip, srcport, dstip, dstport = s
 
             if protocol == "http" or protocol == "https":
-                request = sent.raw.split("\r\n\r\n", 1)[0]
-                response = recv.raw.split("\r\n\r\n", 1)[0]
-
-                md5 = hashlib.md5(recv.body or "").hexdigest()
-                sha1 = hashlib.sha1(recv.body or "").hexdigest()
-
-                filepath = os.path.join(self.network_path, sha1)
-                open(filepath, "wb").write(recv.body or "")
-
                 results["%s_ex" % protocol].append({
                     "src": srcip, "sport": srcport,
                     "dst": dstip, "dport": dstport,
-                    "protocol": protocol,
-                    "method": sent.method,
                     "host": sent.headers.get("host", dstip),
                     "uri": sent.uri,
-                    "request": request.decode("latin-1"),
-                    "response": response.decode("latin-1"),
-                    "md5": md5,
-                    "sha1": sha1,
-                    "path": filepath,
+                    "request": sent.raw.split("\r\n\r\n", 1)[0],
+                    "response": recv.raw.split("\r\n\r\n", 1)[0],
                 })
 
         return results
@@ -869,18 +752,16 @@ class NetworkAnalysis(Processing):
             pcap_path = sorted_path
 
             # Sorted PCAP file hash.
-            if os.path.exists(sorted_path):
-                results["sorted_pcap_sha256"] = File(sorted_path).get_sha256()
+            results["sorted_pcap_sha256"] = File(sorted_path).get_sha256()
         else:
             pcap_path = self.pcap_path
 
         if HAVE_DPKT:
-            results.update(Pcap(pcap_path, self.options).run())
+            results.update(Pcap(pcap_path).run())
 
-        if HAVE_HTTPREPLAY and os.path.exists(pcap_path):
+        if HAVE_HTTPREPLAY:
             try:
-                p2 = Pcap2(pcap_path, self.get_tlsmaster(), self.network_path)
-                results.update(p2.run())
+                results.update(Pcap2(pcap_path, self.get_tlsmaster()).run())
             except:
                 log.exception("Error running httpreplay-based PCAP analysis")
 

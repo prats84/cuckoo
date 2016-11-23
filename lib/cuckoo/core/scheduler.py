@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -10,7 +10,7 @@ import logging
 import threading
 import Queue
 
-from lib.cuckoo.common.config import Config, emit_options
+from lib.cuckoo.common.config import Config, parse_options, emit_options
 from lib.cuckoo.common.constants import CUCKOO_ROOT
 from lib.cuckoo.common.exceptions import CuckooMachineError, CuckooGuestError
 from lib.cuckoo.common.exceptions import CuckooOperationalError
@@ -19,7 +19,6 @@ from lib.cuckoo.common.objects import File
 from lib.cuckoo.common.utils import create_folder
 from lib.cuckoo.core.database import Database, TASK_COMPLETED, TASK_REPORTED
 from lib.cuckoo.core.guest import GuestManager
-from lib.cuckoo.core.log import task_log_start, task_log_stop
 from lib.cuckoo.core.plugins import list_plugins, RunAuxiliary, RunProcessing
 from lib.cuckoo.core.plugins import RunSignatures, RunReporting
 from lib.cuckoo.core.resultserver import ResultServer
@@ -42,23 +41,19 @@ class AnalysisManager(threading.Thread):
     complete the analysis and store, process and report its results.
     """
 
-    def __init__(self, task_id, error_queue):
+    def __init__(self, task, error_queue):
         """@param task: task object containing the details for the analysis."""
         threading.Thread.__init__(self)
 
+        self.task = task
         self.errors = error_queue
         self.cfg = Config()
         self.storage = ""
         self.binary = ""
-        self.storage_binary = ""
         self.machine = None
-
         self.db = Database()
-        self.task = self.db.view_task(task_id)
-        self.guest_manager = None
 
-        self.interface = None
-        self.rt_table = None
+        self.task.options = parse_options(self.task.options)
 
     def init_storage(self):
         """Initialize analysis storage folder."""
@@ -83,18 +78,6 @@ class AnalysisManager(threading.Thread):
             return False
 
         return True
-
-    def check_permissions(self):
-        """Checks if we have permissions to access the file to be analyzed."""
-        if os.access(self.task.target, os.R_OK):
-            return True
-
-        log.error(
-            "Unable to access target file, please check if we have "
-            "permissions to access the file: \"%s\"",
-            self.task.target
-        )
-        return False
 
     def check_file(self):
         """Checks the integrity of the file to be analyzed."""
@@ -130,25 +113,17 @@ class AnalysisManager(threading.Thread):
                 return False
 
         try:
-            self.storage_binary = os.path.join(self.storage, "binary")
+            new_binary_path = os.path.join(self.storage, "binary")
 
             if hasattr(os, "symlink"):
-                os.symlink(self.binary, self.storage_binary)
+                os.symlink(self.binary, new_binary_path)
             else:
-                shutil.copy(self.binary, self.storage_binary)
+                shutil.copy(self.binary, new_binary_path)
         except (AttributeError, OSError) as e:
             log.error("Unable to create symlink/copy from \"%s\" to "
                       "\"%s\": %s", self.binary, self.storage, e)
 
         return True
-
-    def store_task_info(self):
-        """grab latest task from db (if available) and update self.task"""
-        dbtask = self.db.view_task(self.task.id)
-        self.task = dbtask.to_dict()
-
-        task_info_path = os.path.join(self.storage, "task.json")
-        open(task_info_path, "w").write(dbtask.to_json())
 
     def acquire_machine(self):
         """Acquire an analysis machine from the pool of available ones."""
@@ -231,38 +206,18 @@ class AnalysisManager(threading.Thread):
 
         if route == "none":
             self.interface = None
-            self.rt_table = None
         elif route == "internet" and self.cfg.routing.internet != "none":
             self.interface = self.cfg.routing.internet
-            self.rt_table = self.cfg.routing.rt_table
         elif route in vpns:
             self.interface = vpns[route].interface
-            self.rt_table = vpns[route].rt_table
         else:
             log.warning("Unknown network routing destination specified, "
                         "ignoring routing for this analysis: %r", route)
             self.interface = None
-            self.rt_table = None
-
-        # Check if the network interface is still available. If a VPN dies for
-        # some reason, its tunX interface will no longer be available.
-        if self.interface and not rooter("nic_available", self.interface):
-            log.error(
-                "The network interface '%s' configured for this analysis is "
-                "not available at the moment, switching to route=none mode.",
-                self.interface
-            )
-            route = "none"
-            self.task.options["route"] = "none"
-            self.interface = None
-            self.rt_table = None
 
         if self.interface:
             rooter("forward_enable", self.machine.interface,
                    self.interface, self.machine.ip)
-
-        if self.rt_table:
-            rooter("srcroute_enable", self.rt_table, self.machine.ip)
 
         # Propagate the taken route to the database.
         self.db.set_route(self.task.id, route)
@@ -271,9 +226,6 @@ class AnalysisManager(threading.Thread):
         if self.interface:
             rooter("forward_disable", self.machine.interface,
                    self.interface, self.machine.ip)
-
-        if self.rt_table:
-            rooter("srcroute_disable", self.rt_table, self.machine.ip)
 
     def wait_finish(self):
         """Some VMs don't have an actual agent. Mainly those that are used as
@@ -295,17 +247,21 @@ class AnalysisManager(threading.Thread):
         if self.task.category == "baseline":
             time.sleep(options["timeout"])
         else:
+            # Initialize the guest manager.
+            guest = GuestManager(self.machine.name, self.machine.ip,
+                                 self.machine.platform, self.task.id)
+
             # Start the analysis.
             self.db.guest_set_status(self.task.id, "starting")
             monitor = self.task.options.get("monitor", "latest")
-            self.guest_manager.start_analysis(options, monitor)
+            guest.start_analysis(options, monitor)
 
             # In case the Agent didn't respond and we force-quit the analysis
             # at some point while it was still starting the analysis the state
             # will be "stop" (or anything but "running", really).
             if self.db.guest_get_status(self.task.id) == "starting":
                 self.db.guest_set_status(self.task.id, "running")
-                self.guest_manager.wait_for_completion()
+                guest.wait_for_completion()
 
             self.db.guest_set_status(self.task.id, "stopping")
 
@@ -325,17 +281,7 @@ class AnalysisManager(threading.Thread):
         if not self.init_storage():
             return False
 
-        # Initiates per-task logging.
-        task_log_start(self.task.id)
-
-        self.store_task_info()
-
         if self.task.category == "file":
-            # Check if we have permissions to access the file.
-            # And fail this analysis if we don't have access to the file.
-            if not self.check_permissions():
-                return False
-
             # Check whether the file has been changed for some unknown reason.
             # And fail this analysis if it has been modified.
             if not self.check_file():
@@ -360,14 +306,8 @@ class AnalysisManager(threading.Thread):
             machinery.release(self.machine.label)
             self.errors.put(e)
 
-        # Initialize the guest manager.
-        self.guest_manager = GuestManager(
-            self.machine.name, self.machine.ip,
-            self.machine.platform, self.task.id, self
-        )
-
-        self.aux = RunAuxiliary(self.task, self.machine, self.guest_manager)
-        self.aux.start()
+        aux = RunAuxiliary(task=self.task, machine=self.machine)
+        aux.start()
 
         # Generate the analysis configuration file.
         options = self.build_options()
@@ -404,10 +344,7 @@ class AnalysisManager(threading.Thread):
         except CuckooMachineError as e:
             if not unlocked:
                 machine_lock.release()
-            log.error(
-                "Machinery error: %s",
-                e, extra={"task_id": self.task.id}
-            )
+            log.error(str(e), extra={"task_id": self.task.id})
             log.critical(
                 "A critical error has occurred trying to use the machine "
                 "with name %s during an analysis due to which it is no "
@@ -421,13 +358,10 @@ class AnalysisManager(threading.Thread):
         except CuckooGuestError as e:
             if not unlocked:
                 machine_lock.release()
-            log.error(
-                "Error from the Cuckoo Guest: %s",
-                e, extra={"task_id": self.task.id}
-            )
+            log.error(str(e), extra={"task_id": self.task.id})
         finally:
             # Stop Auxiliary modules.
-            self.aux.stop()
+            aux.stop()
 
             # Take a memory dump of the machine before shutting it off.
             if self.cfg.cuckoo.memory_dump or self.task.memory:
@@ -438,7 +372,7 @@ class AnalysisManager(threading.Thread):
                     log.error("The memory dump functionality is not available "
                               "for the current machine manager.")
                 except CuckooMachineError as e:
-                    log.error("Machinery error: %s", e)
+                    log.error(e)
 
             try:
                 # Stop the analysis machine.
@@ -472,9 +406,9 @@ class AnalysisManager(threading.Thread):
 
     def process_results(self):
         """Process the analysis results and generate the enabled reports."""
-        results = RunProcessing(task=self.task).run()
+        results = RunProcessing(task=self.task.to_dict()).run()
         RunSignatures(results=results).run()
-        RunReporting(task=self.task, results=results).run()
+        RunReporting(task=self.task.to_dict(), results=results).run()
 
         # If the target is a file and the user enabled the option,
         # delete the original copy.
@@ -499,12 +433,6 @@ class AnalysisManager(threading.Thread):
                     os.remove(self.binary)
                 except OSError as e:
                     log.error("Unable to delete the copy of the original file at path \"%s\": %s", self.binary, e)
-            # Check if the binary in the analysis directory is an invalid symlink. If it is, delete it.
-            if os.path.islink(self.storage_binary) and not os.path.exists(self.storage_binary):
-                try:
-                    os.remove(self.storage_binary)
-                except OSError as e:
-                    log.error("Unable to delete symlink to the binary copy at path \"%s\": %s", self.storage_binary, e)
 
         log.info("Task #%d: reports generation completed (path=%s)",
                  self.task.id, self.storage)
@@ -520,12 +448,15 @@ class AnalysisManager(threading.Thread):
 
             self.db.set_status(self.task.id, TASK_COMPLETED)
 
+            # If the task is still available in the database, update our task
+            # variable with what's in the database, as otherwise we're missing
+            # out on the status and completed_on change. This would then in
+            # turn thrown an exception in the analysisinfo processing module.
+            self.task = self.db.view_task(self.task.id) or self.task
+
             log.debug("Released database task #%d", self.task.id)
 
             if self.cfg.cuckoo.process_results:
-                # this updates self.task so processing gets the latest and greatest
-                self.store_task_info()
-
                 self.process_results()
                 self.db.set_status(self.task.id, TASK_REPORTED)
 
@@ -552,13 +483,10 @@ class AnalysisManager(threading.Thread):
                 finally:
                     latest_symlink_lock.release()
 
-            # overwrite task.json so we have the latest data inside
-            self.store_task_info()
             log.info("Task #%d: analysis procedure completed", self.task.id)
         except:
             log.exception("Failure in AnalysisManager.run")
 
-        task_log_stop(self.task.id)
         active_analysis_count -= 1
 
 class Scheduler(object):
@@ -652,7 +580,7 @@ class Scheduler(object):
             # Drop forwarding rule to each VPN.
             for vpn in vpns.values():
                 rooter("forward_disable", machine.interface,
-                       vpn.interface, machine.ip)
+                       vpn["interface"], machine.ip)
 
             # Drop forwarding rule to the internet / dirty line.
             if self.cfg.routing.internet != "none":
@@ -758,7 +686,7 @@ class Scheduler(object):
                 self.total_analysis_count += 1
 
                 # Initialize and start the analysis manager.
-                analysis = AnalysisManager(task.id, errors)
+                analysis = AnalysisManager(task, errors)
                 analysis.daemon = True
                 analysis.start()
 

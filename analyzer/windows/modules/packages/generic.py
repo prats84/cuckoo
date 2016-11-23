@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -25,5 +25,5 @@ class Generic(Package):
         # start ["title"] [/dPath] [/i] [/min] [/max] [{/separate | /shared}]
         # [{/low | /normal | /high | /realtime | /abovenormal | belownormal}]
         # [/wait] [/b] [FileName] [parameters]
-        args = ["/c", "start", "/wait", '"%s"' % rand_title, path]
-        return self.execute(cmd_path, args=args, trigger="file:%s" % path)
+        args = ["/c", "start", "/wait", rand_title, path]
+        return self.execute(cmd_path, args=args)

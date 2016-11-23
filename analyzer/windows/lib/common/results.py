@@ -1,12 +1,11 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
 import logging
 import socket
 import time
-import sys
 
 from lib.core.config import Config
 
@@ -14,11 +13,10 @@ log = logging.getLogger(__name__)
 
 BUFSIZE = 1024*1024
 
-def upload_to_host(file_path, dump_path, pids=[]):
+def upload_to_host(file_path, dump_path):
     nc = infd = None
     try:
-        nc = NetlogFile()
-        nc.init(dump_path, file_path, pids)
+        nc = NetlogFile(dump_path)
 
         infd = open(file_path, "rb")
         buf = infd.read(BUFSIZE)
@@ -46,12 +44,10 @@ class NetlogConnection(object):
         while not self.sock:
             try:
                 s = socket.create_connection((self.hostip, self.hostport), 0.1)
+                s.sendall(self.proto)
             except socket.error:
                 time.sleep(0.1)
                 continue
-
-            s.settimeout(None)
-            s.sendall(self.proto)
 
             self.sock = s
 
@@ -66,9 +62,9 @@ class NetlogConnection(object):
                 self.connect()
                 self.send(data, retry=False)
             else:
-                print >>sys.stderr, "Unhandled exception in NetlogConnection:", str(e)
+                raise
         except Exception as e:
-            print >>sys.stderr, "Unhandled exception in NetlogConnection:", str(e)
+            log.error("Unhandled exception in NetlogConnection: %s", str(e))
             # We really have nowhere to log this, if the netlog connection
             # does not work, we can assume that any logging won't work either.
             # So we just fail silently.
@@ -81,14 +77,9 @@ class NetlogConnection(object):
             pass
 
 class NetlogFile(NetlogConnection):
-    def init(self, dump_path, filepath=None, pids=[]):
-        if filepath:
-            self.proto = "FILE 2\n{0}\n{1}\n{2}\n".format(
-                dump_path, filepath, " ".join(pids)
-            )
-        else:
-            self.proto = "FILE\n{0}\n".format(dump_path)
-
+    def __init__(self, filepath):
+        self.filepath = filepath
+        NetlogConnection.__init__(self, proto="FILE\n{0}\n".format(self.filepath))
         self.connect()
 
 class NetlogHandler(logging.Handler, NetlogConnection):
